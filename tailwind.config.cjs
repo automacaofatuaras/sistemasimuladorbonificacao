@@ -1,4 +1,4 @@
-/** @type {import('tailwind').Config} */
+/** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
     "./index.html",
@@ -9,3 +9,4 @@ module.exports = {
   },
   plugins: [],
 }
+export default{darkMode: 'class'}
