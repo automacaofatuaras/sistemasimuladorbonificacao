@@ -1228,7 +1228,7 @@ function EvaluationSystemView({ currentUser, employees, appId, db, showNotificat
   const [loadingData, setLoadingData] = useState(false);
 
   const uniqueTeams = useMemo(() => [...new Set(employees.map(e => e.team))].sort(), [employees]);
-
+  
   useEffect(() => {
     if (!period) return;
     const fetchData = async () => {
@@ -1244,10 +1244,10 @@ function EvaluationSystemView({ currentUser, employees, appId, db, showNotificat
     };
     fetchData();
   }, [period, appId, db]);
-
+  
   const isAvaliador = currentUser.role === 'avaliador';
   const isAdmin = currentUser.role === 'admin';
-
+  
   // Month names
   const months = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
   const years = [2024, 2025, 2026];
@@ -1257,7 +1257,7 @@ function EvaluationSystemView({ currentUser, employees, appId, db, showNotificat
       <div className="flex flex-col md:flex-row justify-between items-center gap-4 border-b pb-6">
         <div><h2 className="text-2xl font-bold flex items-center gap-2"><Target className="text-purple-600"/> Sistema de Avaliação</h2></div>
         
-        {/* New Period Selector */}
+        {/* Period Selector */}
         <div className="flex items-center gap-2 bg-white dark:bg-slate-800 p-1 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700">
            <div className="relative">
               <select 
@@ -1265,7 +1265,7 @@ function EvaluationSystemView({ currentUser, employees, appId, db, showNotificat
                 onChange={(e) => setPeriodMonth(parseInt(e.target.value))}
                 className="appearance-none bg-transparent pl-4 pr-8 py-2 text-sm font-medium text-slate-700 dark:text-white outline-none cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 rounded"
               >
-                 {months.map((m, i) => <option key={i} value={i}>{m}</option>)}
+                  {months.map((m, i) => <option key={i} value={i}>{m}</option>)}
               </select>
               <ChevronDown size={14} className="absolute right-2 top-3 text-slate-400 pointer-events-none"/>
            </div>
@@ -1292,6 +1292,7 @@ function EvaluationSystemView({ currentUser, employees, appId, db, showNotificat
       {loadingData ? <div className="flex justify-center py-12"><Loader2 className="animate-spin text-purple-600"/></div> : (
         <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-6 min-h-[500px]">
           {phase === 1 && !isAvaliador && <Phase1TeamGoals teams={uniqueTeams} goalsData={teamGoals} period={period} appId={appId} db={db} onUpdate={(t, d) => setTeamGoals(p => ({...p, [t]: d}))} showNotification={showNotification}/>}
+          
           {phase === 2 && 
             <Phase2IndividualEval 
               teams={uniqueTeams} 
@@ -1305,8 +1306,10 @@ function EvaluationSystemView({ currentUser, employees, appId, db, showNotificat
               triggerConfirm={triggerConfirm}
               readOnly={currentUser.role === 'editor'} 
               forceUnlock={isAdmin}
+              currentUser={currentUser} /* <--- AQUI ESTAVA FALTANDO */
             />
           }
+          
           {phase === 3 && !isAvaliador && <Phase3Dashboards teams={uniqueTeams} employees={employees} appId={appId} db={db} initialPeriod={period}/>}
         </div>
       )}
