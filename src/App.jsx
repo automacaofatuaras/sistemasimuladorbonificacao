@@ -5,7 +5,8 @@ import {
   Printer, ChevronRight, ChevronLeft, Search, AlertCircle, CheckCircle,
   Database, AlertTriangle, Sparkles, Loader2, Globe, Building2, Wallet,
   Target, ClipboardCheck, BarChart3, Trophy, TrendingUp, TrendingDown,
-  PieChart, Calendar, Filter, Lock, Unlock, LogOut, UserCog, KeyRound, ChevronDown
+  PieChart, Calendar, Filter, Lock, Unlock, LogOut, UserCog, KeyRound, ChevronDown,
+  HardHat, Truck
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { 
@@ -29,7 +30,9 @@ import {
   setDoc,
   where
 } from 'firebase/firestore';
-const appId = "projeto simulador"
+
+// --- Configuração da API Gemini ---
+const apiKey = ""; 
 
 // --- DADOS PADRÃO (SEED) ---
 const DEFAULT_ADMIN = {
@@ -52,6 +55,30 @@ const SEED_DATA = [
   }
 ];
 
+// --- TEMPLATES DE EQUIPES PROJETADAS ---
+const TEAM_TEMPLATES = {
+  'Pavimentação': [
+    { role: 'AJUDANTE GERAL', count: 1 },
+    { role: 'MOTORISTA CAMINHAO ESPARGIDOR', count: 1 },
+    { role: 'MOTORISTA CAMINHAO', count: 1 },
+    { role: 'OPERADOR DE ACABADORA', count: 1 },
+    { role: 'OPERADOR DE ESPARGIDOR', count: 1 },
+    { role: 'OPERADOR DE MESA', count: 1 },
+    { role: 'OPERADOR DE ROLO', count: 1 },
+    { role: 'RASTELEIRO', count: 2 },
+    { role: 'ENC DE OBRAS PAVIMENTACAO', count: 1 }
+  ],
+  'Terraplenagem': [
+    { role: 'AJUDANTE GERAL', count: 2 },
+    { role: 'GREDISTA', count: 1 },
+    { role: 'MOTORISTA CAMINHAO', count: 3 },
+    { role: 'OPERADOR DE ESCAVADEIRA', count: 1 },
+    { role: 'OPERADOR DE MAQUINAS', count: 3 },
+    { role: 'OPERADOR DE PA CARREGADEIRA', count: 1 },
+    { role: 'ENC DE OBRAS TERRAPLANAGEM', count: 1 }
+  ]
+};
+
 // --- Configuração do Firebase ---
 const firebaseConfig = {
   apiKey: "AIzaSyAiyEyXHdDJLxC-kUuvVc7wyAgubZyFnyc",
@@ -62,10 +89,8 @@ const firebaseConfig = {
   appId: "1:251181063318:web:af63d03a898bbb910276b7"
 };
 
-// Inicializa o Firebase
+// Initialize Firebase
 const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
 
 // --- Helper Gemini ---
 async function callGemini(prompt, systemInstruction = "") {
@@ -174,13 +199,78 @@ export default function App() {
     setConfirmDialog({ isOpen: true, title, message, onConfirm });
   };
 
+  // --- Funções Auxiliares de Cálculo de Salário Médio ---
+  const getAverageSalaryForRole = (role, allEmployees) => {
+    // Normalização básica
+    const normalizedRole = role.toUpperCase().trim();
+    
+    // Filtro exato
+    let matches = allEmployees.filter(e => e.role && e.role.toUpperCase().includes(normalizedRole));
+    
+    // Se não achar exato, tenta por palavra chave (ex: "Motorista")
+    if (matches.length === 0) {
+      const keywords = normalizedRole.split(' ');
+      if (keywords.length > 0) {
+         matches = allEmployees.filter(e => e.role && e.role.toUpperCase().includes(keywords[0]));
+      }
+    }
+
+    // Se ainda não achar, média geral da empresa
+    if (matches.length === 0) matches = allEmployees;
+    if (matches.length === 0) return { base: 2000, charges: 28.8, provisions: 600 }; // Fallback total
+
+    const totalBase = matches.reduce((acc, e) => acc + (parseFloat(e.baseSalary) || 0), 0);
+    const totalCharges = matches.reduce((acc, e) => acc + (parseFloat(e.chargesPercent) || 0), 0);
+    const totalProv = matches.reduce((acc, e) => acc + (parseFloat(e.provisionsTotal) || 0), 0);
+    
+    return {
+      base: totalBase / matches.length,
+      charges: totalCharges / matches.length,
+      provisions: totalProv / matches.length
+    };
+  };
+
   // --- Simulação Logic ---
   const generateSimulation = async (params) => {
     if (!currentUser) return;
-    const details = employees.map(emp => {
+    
+    let allSimulationEmployees = [...employees];
+
+    // Gerar Equipes Projetadas
+    if (params.projectedTeams) {
+      Object.entries(params.projectedTeams).forEach(([type, count]) => {
+        if (count > 0) {
+          const template = TEAM_TEMPLATES[type];
+          for (let i = 1; i <= count; i++) {
+             const teamName = `EQ. PROJETADA ${type.toUpperCase()} ${String(i).padStart(2, '0')}`;
+             template.forEach(item => {
+               const avgData = getAverageSalaryForRole(item.role, employees);
+               for (let k = 0; k < item.count; k++) {
+                 allSimulationEmployees.push({
+                   id: `sim_${type}_${i}_${item.role}_${k}`,
+                   companyCode: 'SIM', companyName: 'SIMULAÇÃO',
+                   externalId: 'PROJ',
+                   name: `[PROJEÇÃO] ${item.role} ${k+1}`,
+                   role: item.role,
+                   team: teamName,
+                   baseSalary: avgData.base,
+                   standardHours: 220,
+                   chargesPercent: avgData.charges,
+                   provisionsTotal: avgData.provisions,
+                   notes: 'Funcionário Projetado',
+                   isSimulated: true
+                 });
+               }
+             });
+          }
+        }
+      });
+    }
+
+    const details = allSimulationEmployees.map(emp => {
       let appliedRule = null;
       let bonusValue = 0;
-      const individualRule = rules.find(r => r.active && r.scope === 'Individual' && r.scopeValue === emp.id);
+      const individualRule = !emp.isSimulated ? rules.find(r => r.active && r.scope === 'Individual' && r.scopeValue === emp.id) : null;
       const roleRule = !individualRule ? rules.find(r => r.active && r.scope === 'Função' && r.scopeValue === emp.role) : null;
       const teamRule = !individualRule && !roleRule ? rules.find(r => r.active && r.scope === 'Equipe' && r.scopeValue === emp.team) : null;
       const globalRule = !individualRule && !roleRule && !teamRule ? rules.find(r => r.active && r.scope === 'Global') : null;
@@ -215,7 +305,8 @@ export default function App() {
       name: params.name, type: 'Premiação', createdAt: new Date().toISOString(),
       baseTotal, bonusTotal, increaseVal: bonusTotal,
       increasePerc: baseTotal > 0 ? (bonusTotal / baseTotal) * 100 : 0,
-      details: details
+      details: details,
+      projectedTeams: params.projectedTeams
     };
 
     try {
@@ -595,25 +686,25 @@ function EmployeesView({ employees, onSave, onDelete, onImport, onBulkDelete, on
   return (
     <div className="space-y-6 print:hidden">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div className="flex flex-wrap items-center gap-4"><h2 className="text-2xl font-bold">Gerenciar Funcionários</h2>{selectedIds.length > 0 && !readOnly && <button onClick={() => { onBulkDelete(selectedIds); setSelectedIds([]); }} className="flex items-center gap-2 px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm font-medium"><Trash2 size={14} /> Excluir {selectedIds.length}</button>}</div>
+        <div className="flex flex-wrap items-center gap-4"><h2 className="text-2xl font-bold">Gerenciar Funcionários</h2>{selectedIds.length > 0 && !readOnly && <button onClick={() => { onBulkDelete(selectedIds); setSelectedIds([]); }} className="flex items-center gap-2 px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm font-medium hover:bg-red-200 transition-colors"><Trash2 size={14} /> Excluir {selectedIds.length} selecionados</button>}</div>
         {!readOnly && (
           <div className="flex gap-2">
              {employees.length === 0 && <button onClick={onSeed} className="flex items-center gap-2 px-4 py-2 bg-amber-100 text-amber-800 rounded border border-amber-300"><Database size={18}/> Base</button>}
-             <label className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded cursor-pointer"><Upload size={18} /> Importar <input type="file" accept=".csv" className="hidden" onChange={handleFileChange} /></label>
-             <button onClick={() => openEdit()} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded"><Plus size={18} /> Novo</button>
+             <label className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded cursor-pointer hover:bg-emerald-700"><Upload size={18} /> Importar <input type="file" accept=".csv" className="hidden" onChange={handleFileChange} /></label>
+             <button onClick={() => openEdit()} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"><Plus size={18} /> Novo</button>
           </div>
         )}
       </div>
       <div className="bg-white dark:bg-slate-800 rounded-lg shadow overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 uppercase text-xs"><tr>{!readOnly && <th className="p-4 w-10">Sel</th>}<th className="p-4">Empresa</th><th className="p-4">Nome</th><th className="p-4">Função</th><th className="p-4 text-right">Salário</th><th className="p-4 text-right">Encargos %</th><th className="p-4 text-right">Provisões</th><th className="p-4 text-right font-bold">Custo Total</th>{!readOnly && <th className="p-4 text-center">Ações</th>}</tr></thead>
+            <thead className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 uppercase text-xs"><tr>{!readOnly && <th className="p-4 w-10"><input type="checkbox" onChange={toggleSelectAll} checked={employees.length > 0 && selectedIds.length === employees.length} className="cursor-pointer"/></th>}<th className="p-4">Empresa</th><th className="p-4">Nome</th><th className="p-4">Função</th><th className="p-4 text-right">Salário</th><th className="p-4 text-right">Encargos %</th><th className="p-4 text-right">Provisões</th><th className="p-4 text-right font-bold">Custo Total</th>{!readOnly && <th className="p-4 text-center">Ações</th>}</tr></thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
               {employees.map(emp => {
                 const totalBaseCost = (emp.baseSalary || 0) + (emp.provisionsTotal || 0) + ((emp.baseSalary * (emp.chargesPercent || 0)) / 100);
                 return (
                   <tr key={emp.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
-                    {!readOnly && <td className="p-4"><input type="checkbox" checked={selectedIds.includes(emp.id)} onChange={() => toggleSelect(emp.id)} /></td>}
+                    {!readOnly && <td className="p-4"><input type="checkbox" checked={selectedIds.includes(emp.id)} onChange={() => toggleSelect(emp.id)} className="cursor-pointer"/></td>}
                     <td className="p-4"><span className="text-xs font-semibold block truncate max-w-[120px]" title={emp.companyName}>{emp.companyName}</span><span className="text-[10px] text-slate-400">{emp.companyCode}</span></td>
                     <td className="p-4 font-medium"><div className="flex flex-col"><span>{emp.name}</span><span className="text-[10px] text-slate-400">ID: {emp.externalId}</span></div></td>
                     <td className="p-4"><div className="flex flex-col"><span className="text-xs">{emp.role}</span><span className="text-[10px] text-slate-400">{emp.team}</span></div></td>
@@ -621,7 +712,7 @@ function EmployeesView({ employees, onSave, onDelete, onImport, onBulkDelete, on
                     <td className="p-4 text-right">{emp.chargesPercent}%</td>
                     <td className="p-4 text-right text-xs text-slate-500">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(emp.provisionsTotal)}</td>
                     <td className="p-4 text-right font-mono font-bold text-slate-700 dark:text-white">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalBaseCost)}</td>
-                    {!readOnly && <td className="p-4 flex justify-center gap-2"><button onClick={() => openEdit(emp)} className="p-1 text-blue-600"><Edit size={16}/></button><button onClick={() => onDelete(emp.id)} className="p-1 text-red-600"><Trash2 size={16}/></button></td>}
+                    {!readOnly && <td className="p-4 flex justify-center gap-2"><button onClick={() => openEdit(emp)} className="p-1 text-blue-600 hover:bg-blue-100 rounded"><Edit size={16}/></button><button onClick={() => onDelete(emp.id)} className="p-1 text-red-600 hover:bg-red-100 rounded"><Trash2 size={16}/></button></td>}
                   </tr>
                 )
               })}
@@ -745,13 +836,27 @@ function RulesView({ rules, employees, onSave, onDelete }) {
 
 function SimulationsHistoryView({ simulations, onNewSimulation, onView, onDelete, onClearAll, employees, rules, appId, db, setSimulations, showNotification, triggerConfirm }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [newSimParams, setNewSimParams] = useState({ name: '', generalBonusValue: 0 });
+  const [newSimParams, setNewSimParams] = useState({ 
+    name: '', 
+    generalBonusValue: 0,
+    projectedTeams: { 'Pavimentação': 0, 'Terraplenagem': 0 }
+  });
 
   const handleSubmit = (e) => {
     e.preventDefault();
     onNewSimulation(newSimParams);
     setIsModalOpen(false);
-    setNewSimParams({ name: '', generalBonusValue: 0 });
+    setNewSimParams({ name: '', generalBonusValue: 0, projectedTeams: { 'Pavimentação': 0, 'Terraplenagem': 0 } });
+  };
+
+  const updateTeamCount = (type, delta) => {
+    setNewSimParams(prev => ({
+      ...prev,
+      projectedTeams: {
+        ...prev.projectedTeams,
+        [type]: Math.max(0, (prev.projectedTeams[type] || 0) + delta)
+      }
+    }));
   };
 
   return (
@@ -769,7 +874,12 @@ function SimulationsHistoryView({ simulations, onNewSimulation, onView, onDelete
           <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
             {simulations.map(sim => (
               <tr key={sim.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
-                <td className="p-4 font-medium">{sim.name}</td>
+                <td className="p-4 font-medium">
+                  {sim.name}
+                  {sim.projectedTeams && Object.values(sim.projectedTeams).some(v => v > 0) && (
+                     <span className="ml-2 px-2 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] rounded-full font-bold">PROJEÇÃO</span>
+                  )}
+                </td>
                 <td className="p-4 text-slate-500">{new Date(sim.createdAt).toLocaleDateString()}</td>
                 <td className="p-4 text-right font-mono">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(sim.baseTotal)}</td>
                 <td className="p-4 text-right font-mono text-emerald-600 font-bold">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(sim.bonusTotal)}</td>
@@ -784,12 +894,47 @@ function SimulationsHistoryView({ simulations, onNewSimulation, onView, onDelete
       </div>
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-           <div className="bg-white dark:bg-slate-800 rounded-lg p-6 w-full max-w-md shadow-xl">
-             <h3 className="text-xl font-bold mb-4">Nova Simulação</h3>
-             <form onSubmit={handleSubmit} className="space-y-4">
-                <div><label className="block text-xs font-bold">Nome</label><input required className="w-full p-2 border rounded dark:bg-slate-700" value={newSimParams.name} onChange={e => setNewSimParams({...newSimParams, name: e.target.value})} /></div>
-                <div><label className="block text-xs font-bold">Bônus Geral (R$)</label><input required type="number" className="w-full p-2 border rounded dark:bg-slate-700" value={newSimParams.generalBonusValue} onChange={e => setNewSimParams({...newSimParams, generalBonusValue: parseFloat(e.target.value)})} /></div>
-                <div className="flex justify-end pt-4 gap-2"><button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-slate-600">Cancelar</button><button className="px-6 py-2 bg-emerald-600 text-white rounded">Gerar</button></div>
+           <div className="bg-white dark:bg-slate-800 rounded-lg p-6 w-full max-w-lg shadow-xl max-h-[90vh] overflow-y-auto">
+             <div className="flex justify-between items-center mb-6">
+               <h3 className="text-xl font-bold">Nova Simulação</h3>
+               <button onClick={() => setIsModalOpen(false)}><X size={24}/></button>
+             </div>
+             <form onSubmit={handleSubmit} className="space-y-6">
+                <div className="space-y-4">
+                  <div><label className="block text-xs font-bold mb-1">Nome da Simulação</label><input required className="w-full p-2 border rounded dark:bg-slate-700" value={newSimParams.name} onChange={e => setNewSimParams({...newSimParams, name: e.target.value})} placeholder="Ex: Simulação Dezembro 2024" /></div>
+                  <div><label className="block text-xs font-bold mb-1">Bônus Geral (R$)</label><input required type="number" className="w-full p-2 border rounded dark:bg-slate-700" value={newSimParams.generalBonusValue} onChange={e => setNewSimParams({...newSimParams, generalBonusValue: parseFloat(e.target.value)})} /></div>
+                </div>
+
+                <div className="bg-slate-50 dark:bg-slate-700/30 p-4 rounded-lg border border-slate-200 dark:border-slate-600">
+                  <h4 className="font-bold text-sm text-slate-700 dark:text-slate-200 mb-3 flex items-center gap-2"><HardHat size={16}/> Contratar Equipes (Projeção)</h4>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="p-2 bg-orange-100 text-orange-600 rounded"><Truck size={18}/></div>
+                        <div><p className="text-sm font-bold">Pavimentação</p><p className="text-xs text-slate-500">10 Pessoas</p></div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                         <button type="button" onClick={() => updateTeamCount('Pavimentação', -1)} className="p-1 bg-slate-200 rounded hover:bg-slate-300 w-8 h-8 flex items-center justify-center">-</button>
+                         <span className="font-bold w-4 text-center">{newSimParams.projectedTeams['Pavimentação']}</span>
+                         <button type="button" onClick={() => updateTeamCount('Pavimentação', 1)} className="p-1 bg-blue-100 text-blue-600 rounded hover:bg-blue-200 w-8 h-8 flex items-center justify-center">+</button>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between border-t pt-4">
+                      <div className="flex items-center gap-2">
+                        <div className="p-2 bg-amber-100 text-amber-600 rounded"><Truck size={18}/></div>
+                        <div><p className="text-sm font-bold">Terraplenagem</p><p className="text-xs text-slate-500">12 Pessoas</p></div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                         <button type="button" onClick={() => updateTeamCount('Terraplenagem', -1)} className="p-1 bg-slate-200 rounded hover:bg-slate-300 w-8 h-8 flex items-center justify-center">-</button>
+                         <span className="font-bold w-4 text-center">{newSimParams.projectedTeams['Terraplenagem']}</span>
+                         <button type="button" onClick={() => updateTeamCount('Terraplenagem', 1)} className="p-1 bg-blue-100 text-blue-600 rounded hover:bg-blue-200 w-8 h-8 flex items-center justify-center">+</button>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-slate-500 mt-3 italic">* Custo estimado baseado na média salarial da base atual.</p>
+                </div>
+
+                <div className="flex justify-end pt-4 gap-2"><button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-slate-600">Cancelar</button><button className="px-6 py-2 bg-emerald-600 text-white rounded font-bold shadow-lg hover:bg-emerald-700 transform transition-all active:scale-95">Gerar Simulação</button></div>
              </form>
            </div>
         </div>
@@ -808,6 +953,31 @@ function SimulationDetailView({ simulation, onBack }) {
       teams[d.team].bonusTotal += d.bonusApplied;
     });
     return Object.values(teams).sort((a, b) => a.name.localeCompare(b.name));
+  }, [simulation]);
+
+  const sectorSummary = useMemo(() => {
+    const sectors = {
+      'Equipes de Terraplenagem': { count: 0, baseTotal: 0, bonusTotal: 0 },
+      'Equipes de Pavimentação': { count: 0, baseTotal: 0, bonusTotal: 0 },
+      'Equipe de Imprimação Base': { count: 0, baseTotal: 0, bonusTotal: 0 }
+    };
+
+    simulation.details.forEach(d => {
+      const t = d.team ? d.team.toUpperCase() : '';
+      let key = null;
+      
+      if (t.includes('TERRAP') || t.includes('TERRAPLENAGEM')) key = 'Equipes de Terraplenagem';
+      else if (t.includes('PAVIMENT') || t.includes('PAVIMENTAÇÃO')) key = 'Equipes de Pavimentação';
+      else if (t.includes('IMPRIM') || t.includes('BASE')) key = 'Equipe de Imprimação Base';
+
+      if (key) {
+        sectors[key].count++;
+        sectors[key].baseTotal += d.baseSalary + (d.provisionsValue || 0);
+        sectors[key].bonusTotal += d.bonusApplied;
+      }
+    });
+
+    return Object.entries(sectors).map(([name, data]) => ({ name, ...data }));
   }, [simulation]);
 
   const handlePrint = () => { window.focus(); setTimeout(() => window.print(), 200); };
@@ -832,7 +1002,12 @@ function SimulationDetailView({ simulation, onBack }) {
       </div>
 
       <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow border-t-4 border-blue-500 print:shadow-none print:border-none">
-        <h1 className="text-3xl font-bold mb-2">{simulation.name}</h1>
+        <h1 className="text-3xl font-bold mb-2 flex items-center gap-2">
+          {simulation.name}
+          {simulation.projectedTeams && Object.values(simulation.projectedTeams).some(v => v > 0) && (
+            <span className="px-3 py-1 bg-indigo-100 text-indigo-800 text-xs rounded-full border border-indigo-200">COM PROJEÇÃO</span>
+          )}
+        </h1>
         <p className="text-slate-500 text-sm mb-6">Gerada em: {new Date(simulation.createdAt).toLocaleString()}</p>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8 print:grid-cols-4">
@@ -840,6 +1015,32 @@ function SimulationDetailView({ simulation, onBack }) {
           <div className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded border"><p className="text-xs font-bold uppercase">Folha Final</p><p className="text-lg font-mono font-semibold">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(simulation.baseTotal + simulation.bonusTotal + simulation.details.reduce((acc, d) => acc + d.chargesValue, 0))}</p></div>
           <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded border border-emerald-100"><p className="text-xs font-bold uppercase text-emerald-600">Total Bônus</p><p className="text-lg font-mono font-bold text-emerald-700">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(simulation.bonusTotal)}</p></div>
           <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded border border-blue-100"><p className="text-xs font-bold uppercase text-blue-600">Aumento Médio</p><p className="text-lg font-mono font-bold text-blue-700">{simulation.increasePerc.toFixed(2)}%</p></div>
+        </div>
+
+        <h3 className="text-xl font-bold mb-4 border-b pb-2">Resumo por Setor</h3>
+        <div className="overflow-x-auto mb-8 bg-slate-50 dark:bg-slate-700/30 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+          <table className="w-full text-left text-sm">
+            <thead className="text-xs uppercase text-slate-500">
+              <tr>
+                <th className="p-3">Setor</th>
+                <th className="p-3 text-center">Func.</th>
+                <th className="p-3 text-right">Base (C/ Prov)</th>
+                <th className="p-3 text-right">Bônus</th>
+                <th className="p-3 text-right">%</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200 dark:divide-slate-600">
+              {sectorSummary.map(s => (
+                <tr key={s.name}>
+                  <td className="p-3 font-bold text-slate-700 dark:text-slate-200">{s.name}</td>
+                  <td className="p-3 text-center">{s.count}</td>
+                  <td className="p-3 text-right font-mono">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(s.baseTotal)}</td>
+                  <td className="p-3 text-right font-mono text-emerald-600 font-bold">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(s.bonusTotal)}</td>
+                  <td className="p-3 text-right font-mono">{s.baseTotal > 0 ? ((s.bonusTotal / s.baseTotal) * 100).toFixed(2) : 0}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
 
         <h3 className="text-xl font-bold mb-4 border-b pb-2">Resumo por Equipe</h3>
@@ -855,8 +1056,12 @@ function SimulationDetailView({ simulation, onBack }) {
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-100 dark:bg-slate-700 uppercase"><tr><th className="p-2">Nome</th><th className="p-2">Função</th><th className="p-2 text-right">Salário</th><th className="p-2 text-right">Bônus</th><th className="p-2 text-right">Encargos</th><th className="p-2 text-right">Provisões</th><th className="p-2 text-right font-bold">Total Custo</th><th className="p-2">Regra</th></tr></thead>
             <tbody className="divide-y">{simulation.details.sort((a,b) => a.name.localeCompare(b.name)).map((d, idx) => (
-              <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-700/30">
-                <td className="p-2 font-medium">{d.name}</td><td className="p-2 text-slate-500">{d.role}</td>
+              <tr key={idx} className={`hover:bg-slate-50 dark:hover:bg-slate-700/30 ${d.isSimulated ? 'bg-indigo-50/50 dark:bg-indigo-900/10' : ''}`}>
+                <td className="p-2 font-medium">
+                  {d.name}
+                  {d.isSimulated && <span className="ml-1 text-[9px] bg-indigo-100 text-indigo-700 px-1 rounded">PROJ</span>}
+                </td>
+                <td className="p-2 text-slate-500">{d.role}</td>
                 <td className="p-2 text-right font-mono">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(d.baseSalary)}</td>
                 <td className="p-2 text-right font-mono text-emerald-600 font-bold">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(d.bonusApplied)}</td>
                 <td className="p-2 text-right font-mono text-slate-400">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(d.chargesValue)}</td>
