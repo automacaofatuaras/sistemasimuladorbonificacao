@@ -125,7 +125,7 @@ export default function App() {
   const [darkMode, setDarkMode] = useState(() => {
     // Tenta pegar do armazenamento local, se não houver, começa false (claro)
     const savedTheme = localStorage.getItem('theme');
-    return savedTheme === 'dark';
+    return localStorage.getItem('theme') === 'dark';
   });
   useEffect(() => {
     if (darkMode) {
