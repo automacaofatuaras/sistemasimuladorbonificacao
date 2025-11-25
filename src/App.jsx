@@ -29,6 +29,7 @@ import {
   setDoc,
   where
 } from 'firebase/firestore';
+const appId = "projeto simulador"
 
 // --- DADOS PADRÃO (SEED) ---
 const DEFAULT_ADMIN = {
