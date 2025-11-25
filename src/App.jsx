@@ -122,17 +122,21 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
 
-  const [darkMode, setDarkMode] = useState(() => {
-    // Tenta pegar do armazenamento local, se não houver, começa false (claro)
-    const savedTheme = localStorage.getItem('theme');
-    return localStorage.getItem('theme') === 'dark';
+const [darkMode, setDarkMode] = useState(() => {
+    // 1. Tenta lembrar a escolha do usuário
+    const saved = localStorage.getItem('theme');
+    // 2. Se não tiver escolha, verifica a preferência do sistema
+    if (!saved) return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    return saved === 'dark';
   });
+
   useEffect(() => {
+    const root = window.document.documentElement;
     if (darkMode) {
-      document.documentElement.classList.add('dark');
+      root.classList.add('dark');
       localStorage.setItem('theme', 'dark');
     } else {
-      document.documentElement.classList.remove('dark');
+      root.classList.remove('dark');
       localStorage.setItem('theme', 'light');
     }
   }, [darkMode]);
@@ -393,7 +397,7 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen bg-gray-50 dark:bg-slate-900 overflow-hidden font-sans print:h-auto print:overflow-visible">
+    <div className="flex h-screen bg-gray-50 dark:bg-slate-900 transition-colors duration-200 overflow-hidden font-sans print:h-auto print:overflow-visible">
        <style>{`@media print { body, html, #root { height: auto !important; overflow: visible !important; background: white !important; color: black !important; } .print\\:hidden { display: none !important; } .print\\:w-full { width: 100% !important; } .print\\:max-w-none { max-width: none !important; } ::-webkit-scrollbar { display: none; } }`}</style>
 
       {/* Confirmação Global */}
