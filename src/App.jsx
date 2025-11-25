@@ -53,12 +53,12 @@ const SEED_DATA = [
 
 // --- Configuração do Firebase ---
 const firebaseConfig = {
-  apiKey: "AIzaSyB0eRDOAJxWsJ7yraMfaRGAg4AcGmkktrc",
-  authDomain: "sistema-simulador.firebaseapp.com",
-  projectId: "sistema-simulador",
-  storageBucket: "sistema-simulador.firebasestorage.app",
-  messagingSenderId: "1056317721724",
-  appId: "1:1056317721724:web:ae3014b619c8e6b10b4df9"
+  apiKey: "AIzaSyAiyEyXHdDJLxC-kUuvVc7wyAgubZyFnyc",
+  authDomain: "sistema-simulador-bonificacao.firebaseapp.com",
+  projectId: "sistema-simulador-bonificacao",
+  storageBucket: "sistema-simulador-bonificacao.firebasestorage.app",
+  messagingSenderId: "251181063318",
+  appId: "1:251181063318:web:af63d03a898bbb910276b7"
 };
 
 // Inicializa o Firebase
