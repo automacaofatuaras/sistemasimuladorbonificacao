@@ -397,7 +397,7 @@ const [darkMode, setDarkMode] = useState(() => {
   };
 
   return (
-    <div className="flex h-screen bg-gray-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 overflow-hidden font-sans print:h-auto print:overflow-visible transition-colors duration-200">
+    <div className="flex h-screen bg-red-500 dark:bg-slate-900 text-slate-800 dark:text-slate-100 overflow-hidden font-sans print:h-auto print:overflow-visible transition-colors duration-200">
        <style>{`@media print { body, html, #root { height: auto !important; overflow: visible !important; background: white !important; color: black !important; } .print\\:hidden { display: none !important; } .print\\:w-full { width: 100% !important; } .print\\:max-w-none { max-width: none !important; } ::-webkit-scrollbar { display: none; } }`}</style>
 
       {/* Confirmação Global */}
