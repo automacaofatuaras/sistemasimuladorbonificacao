@@ -393,7 +393,7 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden font-sans print:h-auto print:overflow-visible">
+    <div className="flex h-screen bg-gray-50 dark:bg-slate-900 overflow-hidden font-sans print:h-auto print:overflow-visible">
        <style>{`@media print { body, html, #root { height: auto !important; overflow: visible !important; background: white !important; color: black !important; } .print\\:hidden { display: none !important; } .print\\:w-full { width: 100% !important; } .print\\:max-w-none { max-width: none !important; } ::-webkit-scrollbar { display: none; } }`}</style>
 
       {/* Confirmação Global */}
