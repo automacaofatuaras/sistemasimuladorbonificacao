@@ -30,7 +30,6 @@ import {
   setDoc,
   where
 } from 'firebase/firestore';
-import { getAuth } from 'firebase/auth';
 
 // --- Configuração da API Gemini ---
 const apiKey = ""; 
