@@ -93,6 +93,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore (app);
 const auth = getAuth (app);
+const appId = "projeto-simulador";
 
 // --- Helper Gemini ---
 async function callGemini(prompt, systemInstruction = "") {
