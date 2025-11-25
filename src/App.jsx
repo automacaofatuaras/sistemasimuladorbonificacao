@@ -1346,9 +1346,7 @@ function Phase1TeamGoals({ teams, goalsData, period, appId, db, onUpdate, showNo
   );
 }
 
-function Phase2IndividualEval({ teams, employees, evalsData, period, appId, db, onUpdate, showNotification, triggerConfirm, readOnly, forceUnlock, currentUser }) { 
-  // NOTA: Adicionei 'currentUser' nas props acima ^
-  
+function Phase2IndividualEval({ teams, employees, evalsData, period, appId, db, onUpdate, showNotification, triggerConfirm, readOnly, forceUnlock, currentUser }) {
   const [selectedTeam, setSelectedTeam] = useState(teams[0] || '');
   const [selectedEmpId, setSelectedEmpId] = useState('');
   
@@ -1387,17 +1385,19 @@ function Phase2IndividualEval({ teams, employees, evalsData, period, appId, db, 
     });
   };
 
-  // --- NOVA FUNÇÃO DE DESBLOQUEIO ---
-  const handleAdminUnlock = () => {
+  // --- FUNÇÃO DE EDIÇÃO (EXCLUSIVA ADMIN) ---
+  const handleAdminEdit = () => {
       if (currentUser?.role !== 'admin') return;
-      triggerConfirm('Desbloquear (Admin)', 'Deseja reabrir esta avaliação para edição?', async () => {
+      triggerConfirm('Editar Avaliação', 'Deseja reabrir esta avaliação para fazer alterações?', async () => {
+        // Destrava a avaliação
         const unlockedEval = { ...currentEval, locked: false };
-        onUpdate(selectedEmpId, unlockedEval);
+        onUpdate(selectedEmpId, unlockedEval); // Atualiza visualmente agora
         try { 
+            // Salva no banco como destravada
             await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'evaluations_entries', unlockedEval.id || `${period}_${selectedEmpId}`), unlockedEval); 
-            showNotification('Avaliação desbloqueada pelo Admin.');
+            showNotification('Modo de edição ativado. Salve novamente após as alterações.');
           } catch(e) { 
-            showNotification('Erro ao desbloquear.', 'error');
+            showNotification('Erro ao ativar edição.', 'error');
           }
       });
   };
@@ -1439,10 +1439,11 @@ function Phase2IndividualEval({ teams, employees, evalsData, period, appId, db, 
                   {currentEval.locked && (
                       <div className="flex gap-2 items-center mt-1">
                         <span className="text-xs bg-slate-100 text-slate-500 px-2 py-1 rounded flex items-center gap-1"><Lock size={10}/> Avaliação Finalizada</span>
-                        {/* BOTÃO EXCLUSIVO DO ADMIN */}
+                        
+                        {/* --- BOTÃO DE EDITAR (SÓ ADMIN) --- */}
                         {currentUser?.role === 'admin' && (
-                            <button onClick={handleAdminUnlock} className="text-[10px] bg-red-100 text-red-700 px-2 py-1 rounded hover:bg-red-200 border border-red-200 font-bold flex items-center gap-1">
-                                <Unlock size={10}/> Desbloquear (Admin)
+                            <button onClick={handleAdminEdit} className="text-[10px] bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200 border border-blue-200 font-bold flex items-center gap-1 transition-colors">
+                                <Edit size={10}/> Editar Avaliação
                             </button>
                         )}
                       </div>
@@ -1478,10 +1479,11 @@ function Phase2IndividualEval({ teams, employees, evalsData, period, appId, db, 
                </div>
             </div>
             
+            {/* O botão de salvar reaparece automaticamente quando !currentEval.locked */}
             {!currentEval.locked && (
                <div className="flex justify-end pt-4 border-t mt-4">
                   <button onClick={handleLockAndSave} className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold flex items-center gap-2 shadow-lg transform active:scale-95 transition-all">
-                     <Save size={18}/> Salvar Avaliação Final
+                     <Save size={18}/> {currentEval.id ? 'Salvar Alterações e Finalizar' : 'Salvar Avaliação Final'}
                   </button>
                </div>
             )}
