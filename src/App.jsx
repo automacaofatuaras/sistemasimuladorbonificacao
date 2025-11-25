@@ -30,6 +30,7 @@ import {
   setDoc,
   where
 } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
 
 // --- Configuração da API Gemini ---
 const apiKey = ""; 
@@ -91,6 +92,8 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
+const db = getFiresore (app);
+const auth = getAuth (app);
 
 // --- Helper Gemini ---
 async function callGemini(prompt, systemInstruction = "") {
