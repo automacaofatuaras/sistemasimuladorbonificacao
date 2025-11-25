@@ -122,7 +122,20 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
 
-  const [darkMode, setDarkMode] = useState(false);
+  const [darkMode, setDarkMode] = useState(() => {
+    // Tenta pegar do armazenamento local, se não houver, começa false (claro)
+    const savedTheme = localStorage.getItem('theme');
+    return savedTheme === 'dark';
+  });
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+  }, [darkMode]);
   const [currentView, setCurrentView] = useState('dashboard');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [notification, setNotification] = useState(null);
@@ -380,7 +393,7 @@ export default function App() {
   };
 
   return (
-    <div className={`${darkMode ? 'dark' : ''} flex h-screen bg-gray-50 overflow-hidden font-sans print:h-auto print:overflow-visible`}>
+    <div className="flex h-screen bg-gray-50 overflow-hidden font-sans print:h-auto print:overflow-visible">
        <style>{`@media print { body, html, #root { height: auto !important; overflow: visible !important; background: white !important; color: black !important; } .print\\:hidden { display: none !important; } .print\\:w-full { width: 100% !important; } .print\\:max-w-none { max-width: none !important; } ::-webkit-scrollbar { display: none; } }`}</style>
 
       {/* Confirmação Global */}
