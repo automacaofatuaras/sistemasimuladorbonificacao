@@ -1016,17 +1016,19 @@ function SimulationsHistoryView({ simulations, onNewSimulation, onView, onDelete
 }
 
 function SimulationDetailView({ simulation, onBack }) {
+  // 1. Lógica existente (Resumo por Equipe)
   const teamSummary = useMemo(() => {
     const teams = {};
     simulation.details.forEach(d => {
       if (!teams[d.team]) teams[d.team] = { name: d.team, count: 0, baseTotal: 0, bonusTotal: 0 };
       teams[d.team].count++;
-      teams[d.team].baseTotal += d.baseSalary + (d.provisionsValue || 0); // Base + Provisões
+      teams[d.team].baseTotal += d.baseSalary + (d.provisionsValue || 0);
       teams[d.team].bonusTotal += d.bonusApplied;
     });
     return Object.values(teams).sort((a, b) => a.name.localeCompare(b.name));
   }, [simulation]);
 
+  // 2. Lógica existente (Resumo por Setor)
   const sectorSummary = useMemo(() => {
     const sectors = {
       'Equipes de Terraplenagem': { count: 0, baseTotal: 0, bonusTotal: 0 },
@@ -1052,8 +1054,24 @@ function SimulationDetailView({ simulation, onBack }) {
     return Object.entries(sectors).map(([name, data]) => ({ name, ...data }));
   }, [simulation]);
 
-  const handlePrint = () => { window.focus(); setTimeout(() => window.print(), 200); };
+  // 3. NOVA LÓGICA: Resumo por Função
+  const roleSummary = useMemo(() => {
+    const roles = {};
+    simulation.details.forEach(d => {
+      const roleName = d.role || 'Sem Função';
+      if (!roles[roleName]) {
+        roles[roleName] = { name: roleName, count: 0, baseTotal: 0, bonusTotal: 0 };
+      }
+      roles[roleName].count++;
+      roles[roleName].baseTotal += d.baseSalary + (d.provisionsValue || 0); // Base + Provisões
+      roles[roleName].bonusTotal += d.bonusApplied;
+    });
+    // Retorna array ordenado alfabeticamente
+    return Object.values(roles).sort((a, b) => a.name.localeCompare(b.name));
+  }, [simulation]);
 
+  const handlePrint = () => { window.focus(); setTimeout(() => window.print(), 200); };
+  
   const handleExport = () => {
     let csv = "Nome,Funcao,Equipe,Salario Base,Bonus,Encargos,Provisoes,Total Custo\n";
     simulation.details.forEach(d => csv += `"${d.name}","${d.role}","${d.team}",${d.baseSalary},${d.bonusApplied},${d.chargesValue},${d.provisionsValue || 0},${d.totalCost}\n`);
@@ -1089,6 +1107,7 @@ function SimulationDetailView({ simulation, onBack }) {
           <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded border border-blue-100"><p className="text-xs font-bold uppercase text-blue-600">Aumento Médio</p><p className="text-lg font-mono font-bold text-blue-700">{simulation.increasePerc.toFixed(2)}%</p></div>
         </div>
 
+        {/* --- TABELA 1: RESUMO POR SETOR --- */}
         <h3 className="text-xl font-bold mb-4 border-b pb-2">Resumo por Setor</h3>
         <div className="overflow-x-auto mb-8 bg-slate-50 dark:bg-slate-700/30 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
           <table className="w-full text-left text-sm">
@@ -1115,11 +1134,57 @@ function SimulationDetailView({ simulation, onBack }) {
           </table>
         </div>
 
+        {/* --- NOVO: TABELA 2: RESUMO POR FUNÇÃO --- */}
+        <h3 className="text-xl font-bold mb-4 border-b pb-2 break-before-page">Resumo por Função</h3>
+        <div className="overflow-x-auto mb-8 bg-slate-50 dark:bg-slate-700/30 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+          <table className="w-full text-left text-sm">
+            <thead className="text-xs uppercase text-slate-500">
+              <tr>
+                <th className="p-3">Função</th>
+                <th className="p-3 text-center">Func.</th>
+                <th className="p-3 text-right">Base (C/ Prov)</th>
+                <th className="p-3 text-right">Bônus</th>
+                <th className="p-3 text-right">%</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200 dark:divide-slate-600">
+              {roleSummary.map(r => (
+                <tr key={r.name}>
+                  <td className="p-3 font-bold text-slate-700 dark:text-slate-200">{r.name}</td>
+                  <td className="p-3 text-center">{r.count}</td>
+                  <td className="p-3 text-right font-mono">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(r.baseTotal)}</td>
+                  <td className="p-3 text-right font-mono text-emerald-600 font-bold">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(r.bonusTotal)}</td>
+                  <td className="p-3 text-right font-mono">{r.baseTotal > 0 ? ((r.bonusTotal / r.baseTotal) * 100).toFixed(2) : 0}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* --- TABELA 3: RESUMO POR EQUIPE --- */}
         <h3 className="text-xl font-bold mb-4 border-b pb-2">Resumo por Equipe</h3>
         <div className="overflow-x-auto mb-8">
           <table className="w-full text-left text-sm">
-            <thead className="bg-slate-100 dark:bg-slate-700 text-xs uppercase"><tr><th className="p-3">Equipe</th><th className="p-3 text-center">Func.</th><th className="p-3 text-right">Base (C/ Prov)</th><th className="p-3 text-right">Bônus</th><th className="p-3 text-right">%</th></tr></thead>
-            <tbody className="divide-y">{teamSummary.map(t => (<tr key={t.name}><td className="p-3">{t.name}</td><td className="p-3 text-center">{t.count}</td><td className="p-3 text-right font-mono">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(t.baseTotal)}</td><td className="p-3 text-right font-mono text-emerald-600">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(t.bonusTotal)}</td><td className="p-3 text-right font-mono">{t.baseTotal > 0 ? ((t.bonusTotal / t.baseTotal) * 100).toFixed(2) : 0}%</td></tr>))}</tbody>
+            <thead className="bg-slate-100 dark:bg-slate-700 text-xs uppercase">
+              <tr>
+                <th className="p-3">Equipe</th>
+                <th className="p-3 text-center">Func.</th>
+                <th className="p-3 text-right">Base (C/ Prov)</th>
+                <th className="p-3 text-right">Bônus</th>
+                <th className="p-3 text-right">%</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {teamSummary.map(t => (
+                <tr key={t.name}>
+                  <td className="p-3">{t.name}</td>
+                  <td className="p-3 text-center">{t.count}</td>
+                  <td className="p-3 text-right font-mono">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(t.baseTotal)}</td>
+                  <td className="p-3 text-right font-mono text-emerald-600">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(t.bonusTotal)}</td>
+                  <td className="p-3 text-right font-mono">{t.baseTotal > 0 ? ((t.bonusTotal / t.baseTotal) * 100).toFixed(2) : 0}%</td>
+                </tr>
+              ))}
+            </tbody>
           </table>
         </div>
 
